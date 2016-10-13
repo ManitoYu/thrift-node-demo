@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Thrift</title>
+  </head>
+  <body>
+    <h2>Search</h2>
+    <div>
+      <label>id</label>
+      <input id="id" />
+    </div>
+    <div>
+      <label>result</label>
+      <span id="result"></span>
+    </div>
+    <button id="GetOneButton">Get one</button>
+    <button id="GetAllButton">Get all</button>
+
+    <h2>Create</h2>
+    <div>
+      <label>name</label>
+      <input id="name" />
+    </div>
+    <div>
+      <label>age</label>
+      <input id="age" />
+    </div>
+    <button id="AddButton">Add</button>
+
+    <h2>List</h2>
+    <ul id="PersonsList"></ul>
+
+    <script src="/thrift.js"></script>
+    <script src="/gen-js/hello.js"></script>
+    <script src="/gen-js/hello_types.js"></script>
+    <script type="text/javascript">
+      (() => {
+        const $ = selector => document.querySelector(selector)
+
+        // dom
+        let list = $('#PersonsList')
+        let addButton = $('#AddButton')
+        let getAllButton = $('#GetAllButton')
+        let getOneButton = $('#GetOneButton')
+        let nameInput = $('#name')
+        let ageInput = $('#age')
+        let idInput = $('#id')
+        let result = $('#result')
+
+        // funcs
+        const client = (() => {
+          const _service = 'http://192.168.1.112:4000/hello'
+          const _transport = new Thrift.TXHRTransport(_service)
+          const _protocol = new Thrift.TJSONProtocol(_transport)
+
+          return new helloClient(_protocol)
+        })()
+
+        const renderPersonsList = data => {
+          list.innerHTML = data.map(p => `<li data-userid=${p.id}>${p.id} - (${p.name}, ${p.age})</li>`).join('')
+        }
+        const renderSearchResult = data => {
+          result.innerHTML = `${data.id} - (${data.name}, ${data.age})`
+        }
+
+        const makeID = (() => {
+          let id = 0
+          return () => ++ id
+        })()
+
+        const addPersonPromise = person =>
+          new Promise((resolve, reject) => client.addPerson(person, resolve))
+        const getPersonPromise = userId =>
+          new Promise((resolve, reject) => client.getPerson(userId, resolve))
+        const getPersonsPromise = () =>
+          new Promise((resolve, reject) => client.getPersons(resolve))
+        const delPersonPromise = userId =>
+          new Promise((resolve, reject) => client.delPerson(userId, resolve))
+
+        // events
+        addButton.addEventListener('click', () => {
+          let person = new Person({
+            id: makeID(),
+            name: nameInput.value,
+            age: Number(ageInput.value)
+          })
+
+          addPersonPromise(person)
+            .then(() => getPersonsPromise())
+            .then(persons => renderPersonsList(persons))
+        })
+
+        getAllButton.addEventListener('click', () => {
+          getPersonsPromise()
+            .then(persons => renderPersonsList(persons))
+        })
+
+        getOneButton.addEventListener('click', () => {
+          getPersonPromise(Number(idInput.value))
+            .then(person => renderSearchResult(person))
+        })
+
+        list.addEventListener('dblclick', e => {
+          if (e.target.tagName == 'LI') {
+            delPersonPromise(e.target.dataset.userid)
+              .then(() => getPersonsPromise())
+              .then(persons => renderPersonsList(persons))
+            e.stopPropagation()
+          }
+        })
+
+        renderPersonsList([])
+      })()
+    </script>
+  </body>
+</html>
